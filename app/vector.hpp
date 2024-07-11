@@ -80,8 +80,6 @@ public:
     }
 
     Vector& operator=(Vector&& another) noexcept {
-        std::cout << another.cap_ << std::endl;
-        std::cout << cap_ << std::endl;
         std::swap(data_, another.data_); 
         std::swap(size_, another.size_);
         std::swap(cap_,  another.cap_);
