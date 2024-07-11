@@ -47,10 +47,7 @@ public:
         size_ = another.size_;
     }
 
-    Vector(Vector&& another) noexcept {
-        data_ = another.data_;
-        size_ = another.size_;
-        cap_ = another.cap_;
+    Vector(Vector&& another) noexcept: data_(another.data_), size_(another.size_), cap_(another.cap_) {
         another.data_ = nullptr;
         another.size_ = 0;
         another.cap_ = 0;
@@ -160,7 +157,6 @@ public:
         return data_[index];
     }
 
-    template <typename T>
     class Iterator {
         T* ptr_;
     public:
@@ -176,18 +172,16 @@ public:
         }
 
         bool operator!=(const Iterator& other) const {
-            return ptr != other.ptr;
+            return ptr_ != other.ptr;
         }
-
-
     };
 
     Iterator begin() {
-        return Iterator(data_);
+        return {data_};
     }
 
     Iterator end() {
-        return Iterator(data_+size_);
+        return {data_+size_};
     }
 };
 }
