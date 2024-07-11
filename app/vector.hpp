@@ -8,7 +8,7 @@ namespace my {
 
 template <typename T, typename U>
 requires(std::same_as<T, std::decay_t<U>>)
-void construct(T* ptr, U&& rhs) {new (ptr) T(std::forward<U>(rhs));}
+void construct(T* ptr, U&& rhs) noexcept(noexcept(U{})) {new (ptr) T(std::forward<U>(rhs));}
 
 template<typename T> void destroy(T* ptr) {ptr->~T();}
 
@@ -32,37 +32,46 @@ public:
             construct(data_+size_++, T());
         }
     }
+    
     template<typename It>
-    // Vector(It begin, It end):size_(std::distance(begin, end)) {
-    //     reserve(2*size_);
-    //     size_t cnt = 0;
-    //     while(begin != end) {
-    //         construct(data_+cnt++, *begin++);
-    //     }
-    // }
+    Vector(It begin, It end) {
+        auto size = std::distance(begin, end);
+        reserve(size);
+        std::uninitialized_copy(begin, end, data_);
+        size_ = size;
+    }
+
     Vector(const Vector& another) {
-        // reserve(another.size());
-        // try {
-        //     while(size_ < another.size_) {
-        //         construct(data_+size_, *(another.data_+size_));
-        //         ++size_;
-        //     }
-        // }
-        // catch(const std::exception& e) {
-        //     destroy(data_, data_+size_);
-        //     size_ = 0;
-        //     throw std::bad_alloc("bad alloc");
-        // }
-
+        reserve(another.size_);
+        std::uninitialized_copy(another.data_, another.data_+another.size_, data_);
+        size_ = another.size_;
     }
+
     Vector(Vector&& another) noexcept {
-        
+        data_ = another.data_;
+        size_ = another.size_;
+        cap_ = another.cap_;
+        another.data_ = nullptr;
+        another.size_ = 0;
+        another.cap_ = 0;
     }
+    
     Vector& operator=(const Vector& another) {
-        
+        destroy(data_, data_+size_);
+        ::operator delete(data_);
+        reserve(another.size_);
+        std::uninitialized_copy(another.data_, another.data_+another.size_, data_);
+        size_ = another.size_;
+        return *this;
     }
-    Vector& operator=(Vector&& another) noexcept {
 
+    Vector& operator=(Vector&& another) noexcept {
+        std::cout << another.cap_ << std::endl;
+        std::cout << cap_ << std::endl;
+        std::swap(data_, another.data_); 
+        std::swap(size_, another.size_);
+        std::swap(cap_,  another.cap_);
+        return *this;
     }
     ~Vector() {        
         destroy(data_, data_+size_);
@@ -72,17 +81,10 @@ public:
         if (n <= cap_) return;
 
         T* new_data = n == 0 ? nullptr : static_cast<T*>(::operator new(sizeof(T*)*n));
-        size_t used = 0;
-        
         try {
-            std::uninitialized_copy(data_, data_+size_, new_data_);
-            // while(used < size_) { //non-exception safety
-            //     construct(new_data+used, std::move(*(data_+used)));
-            //     ++used;
-            // }
+            std::uninitialized_copy(data_, data_+size_, new_data);
         }
-        catch(...) {
-            // destroy(data_, data_+used);
+        catch(const std::exception& e) {
             ::operator delete (data_);
             throw;
         }
@@ -92,55 +94,100 @@ public:
         cap_ = n;
     }
     void resize(size_t n, const T& value = T()) {
-        // if(n > cap_) reserve(n);
-        // if(n == size_) return;
-        // if(n > size_) {
-        //     for(size_t i = size_; i < n; ++i) {
-        //         data_[i] = value;
-        //     }
-        // }
-        // else {
-        //     size_ = n;
-        // }
+
     }
 
     void push_back(const T& value) {
-
-        try {
-            if (size_ == cap_) {
-                reserve(2*size_);
-            }
-            construct(data_+size_, value);
-            ++size_;
-        }
-        catch(const std::exception& e) {
-
-        }
-
-    }
-    void push_back(T&& value) {
-        if (size_ == cap_) {
+        if(size_ == 0) {reserve(2);}
+        else if (size_ == cap_) {
             reserve(2*size_);
         }
-        data_[size_++] = std::move(value);
+        construct(data_+size_, value);
+        ++size_;
     }
-    void pop_back() {
+
+    void push_back(T&& value) {
+        if(size_ == 0) {reserve(2);}
+        else if (size_ == cap_) {
+            reserve(2*size_);
+        }
+        construct(data_+size_, std::move(value));
+        ++size_;
+    }
+
+    template <typename ... Args>
+    void emplace_back(Args&&... args) {
+        if(size_ == 0) {reserve(2);}
+        else if (size_ == cap_) {
+            reserve(2*size_);
+        }
+        construct(data_+size_, std::forward<Args>(args)...);
+        ++size_;
+    }
+
+    void pop_back() noexcept {
         --size_;
+        destroy(data_+size_, data_+size_+1);
     }
+
     size_t size() const noexcept {
         return size_;
     }
+
     size_t capacity() const noexcept {
         return cap_;
     }
+
     T& operator[](size_t index) noexcept {
         return data_[index];
     }
+
+    const T& operator[](size_t index) const noexcept {
+        return data_[index];
+    }
+
     T& at(size_t index) {
         if(index > size_) {
             throw std::out_of_range("out of range");
         }
         return data_[index];
+    }
+
+    const T& at(size_t index) const {
+        if(index > size_) {
+            throw std::out_of_range("out of range");
+        }
+        return data_[index];
+    }
+
+    template <typename T>
+    class Iterator {
+        T* ptr_;
+    public:
+        Iterator(T* ptr): ptr_(ptr) {}
+
+        T& operator*() {
+            return *ptr_;
+        }
+
+        Iterator& operator++() {
+            ptr_++;
+            return *this;
+        }
+
+        bool operator!=(const Iterator& other) const {
+            return ptr != other.ptr;
+        }
+
+
+    };
+
+    Iterator begin() {
+        return Iterator(data_);
+    }
+
+    Iterator end() {
+        return Iterator(data_+size_);
     }
 };
 }

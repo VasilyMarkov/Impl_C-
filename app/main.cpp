@@ -39,6 +39,9 @@ void foo(T* it, U&& rhs) {
   }
 }
 
+template<class T>
+void foo() noexcept(noexcept(T())) {}
+
 int main() {
   std::cout << std::boolalpha;
   int* it = new int();
