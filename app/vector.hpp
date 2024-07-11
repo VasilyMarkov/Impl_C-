@@ -6,17 +6,27 @@
 
 namespace my {
 
+template<typename T>
+concept InputIterator =
+  std::input_iterator<T> &&
+  requires(T a, T b) {
+    { *a } -> std::same_as<std::iter_value_t<T>&>;
+    { ++a } -> std::same_as<T&>;
+    { a == b } -> std::same_as<bool>;
+  };
+
 template <typename T, typename U>
 requires(std::same_as<T, std::decay_t<U>>)
 void construct(T* ptr, U&& rhs) noexcept(noexcept(U{})) {new (ptr) T(std::forward<U>(rhs));}
 
-template<typename T> void destroy(T* ptr) {ptr->~T();}
+template<typename T> void destroy(T* ptr) noexcept {ptr->~T();}
 
-template<typename It> void destroy(It begin, It end) {
+template<InputIterator It> void destroy(It begin, It end) noexcept {
     while(begin != end) {
         destroy(&*begin++);
     }
 }
+
 template <typename T>
 class Vector {
 private:
@@ -33,7 +43,14 @@ public:
         }
     }
     
-    template<typename It>
+    explicit Vector(size_t n, const T& value) {
+        reserve(2*n);
+        while(size_ < n) {
+            construct(data_+size_++, value);
+        }
+    }
+    
+    template<InputIterator It>
     Vector(It begin, It end) {
         auto size = std::distance(begin, end);
         reserve(size);

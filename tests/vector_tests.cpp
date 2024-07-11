@@ -122,6 +122,15 @@ TEST(Vector, pop_back) {
     EXPECT_EQ(v[1], 3);
 }
 
+TEST(Vector, fill_constructor) {
+    Vector<int> v(2,2);
+    EXPECT_EQ(v.size(), 2);
+    EXPECT_EQ(v.capacity(), 4);
+    EXPECT_EQ(v[0], 2);
+    EXPECT_EQ(v[1], 2);
+}
+
+
 
 
 
